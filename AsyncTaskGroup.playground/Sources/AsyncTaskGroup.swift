@@ -8,19 +8,16 @@
 
 import Foundation
 
-public protocol AsyncTaskGroupStatus: AnyObject // a class-only (pass-by-reference) protocol
-{
+public protocol AsyncTaskGroupStatus: AnyObject { // a class-only (pass-by-reference) protocol
 	var isCancelled: Bool { get }
 }
 
-public class AsyncTaskGroup
-{
+public class AsyncTaskGroup {
 	public typealias Status = AsyncTaskGroupStatus
 	
 	//
 	
-	public enum Mnemonic
-	{
+	public enum Mnemonic {
 		// plain "continue" is a reserved word, escape with backticks
 		case `continue`, fail(with: Error)
 	}
@@ -39,35 +36,30 @@ public class AsyncTaskGroup
 	
 	public static let defaultQoSClass: DispatchQoS.QoSClass = /* TODO: .userInitiated (?) */ .default
 
-	public init(qos: DispatchQoS.QoSClass = defaultQoSClass, onError: @escaping ErrorHandler, /* array */ _ tasks: [Task])
-	{
+	public init(qos: DispatchQoS.QoSClass = defaultQoSClass, onError: @escaping ErrorHandler, /* array */ _ tasks: [Task]) {
 		self.qos = qos
 		self.onError = onError
 
 		self.tasks = tasks
 	}
 	
-	public convenience init(qos: DispatchQoS.QoSClass = defaultQoSClass, onError: @escaping ErrorHandler, /* variadic */ _ tasks: Task...)
-	{
+	public convenience init(qos: DispatchQoS.QoSClass = defaultQoSClass, onError: @escaping ErrorHandler, /* variadic */ _ tasks: Task...) {
 		self.init(qos: qos, onError: onError, tasks)
 	}
 
-	public func execute()
-	{
+	public func execute() {
 		// cancellation logic is handled by individual tasks, the entire task group always gets executed anyway
 		// always give all chain participants a chance to cancel gracefully
 		_ = status.isCancelled
 
-		if index < tasks.count
-		{
+		if index < tasks.count {
 			let task = tasks[index]
 
 			DispatchQueue.global(qos: qos).async { [weak self] in
 			
 				guard let self_s = self else { return }
 				
-				do
-				{
+				do {
 					try task(self_s.status) { [weak self] mnemonic in
 					
 						guard let self_s = self else { return }
@@ -83,8 +75,7 @@ public class AsyncTaskGroup
 						}
 					}
 				}
-				catch
-				{
+				catch {
 					self_s.onError(self_s.status, error)
 				}
 			}
@@ -93,10 +84,8 @@ public class AsyncTaskGroup
 		}
 	}
 
-	public func cancelAllTasks()
-	{
-		if status.isCancelled == false
-		{
+	public func cancelAllTasks() {
+		if status.isCancelled == false {
 			// TODO: do not allow canceling when already canceled?
 			status.isCancelled = true
 		}
@@ -104,32 +93,26 @@ public class AsyncTaskGroup
 
 	// MARK: - private
 	
-	private class AsyncTaskGroupStatusObject: Status
-	{
-		var isCancelled: Bool
-		{
+	private class AsyncTaskGroupStatusObject: Status {
+		var isCancelled: Bool {
 			// thread safety: https://www.raywenderlich.com/148513/grand-central-dispatch-tutorial-swift-3-part-1
 
-			get
-			{
+			get {
 				var oldValue: Bool!
 				
 				// dispatch synchronously to perform the read
 
-				queue.sync
-				{
+				queue.sync {
 					oldValue = self._isCanceled
 				}
 
 				return oldValue
 			}
 			
-			set
-			{
+			set {
 				// dispatch the write operation asynchronously with a barrier
 
-				queue.async(flags: .barrier)
-				{
+				queue.async(flags: .barrier) {
 					self._isCanceled = newValue
 				}
 			}
